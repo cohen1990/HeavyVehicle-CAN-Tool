@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QIcon
-
+from functools import partial
 from src.hardware.can_manager import can_manager, DeviceType
 from src.hardware.multi_can_manager import multi_can_manager
 
@@ -35,47 +35,65 @@ class EnhancedConnectDialog(QDialog):
         self.load_connected_devices()
     def load_connected_devices(self):
         """加载已连接的设备"""
+        print("DEBUG: 加载已连接设备")
+        
         try:
             from src.hardware.multi_can_manager import multi_can_manager
             
             devices_info = multi_can_manager.get_all_device_info()
+            print(f"DEBUG: 从multi_can_manager获取到 {len(devices_info)} 个设备")
             
             for device_info in devices_info:
-                if device_info['connected']:
-                    # ✅ 修复：使用现有的add_device_to_connected方法
-                    device_data = {
-                        'name': device_info['name'],
-                        'type': device_info['type'],
-                        'port': device_info['port'],
-                        'baudrate': device_info['baudrate'],
-                        'connected': True
-                    }
+                print(f"DEBUG: 检查设备: {device_info.get('name')}, 连接状态: {device_info.get('connected')}")
+                
+                if device_info.get('connected', False):
+                    # 检查是否已添加到表格
+                    already_in_table = False
+                    for existing in self.connected_devices:
+                        if existing.get('port') == device_info.get('port'):
+                            already_in_table = True
+                            # 更新连接状态
+                            existing['connected'] = True
+                            break
                     
-                    # 添加到表格
-                    self.add_device_to_connected(device_data)
-                    
-                    # 更新连接状态
-                    row = len(self.connected_devices) - 1
-                    if row >= 0:
-                        # 更新状态显示
-                        status_item = QTableWidgetItem("✅ 已连接")
-                        status_item.setForeground(QColor(0, 128, 0))
-                        self.table_connected.setItem(row, 4, status_item)
+                    if not already_in_table:
+                        # 添加到表格
+                        device_data = {
+                            'name': device_info['name'],
+                            'type': device_info['type'],
+                            'port': device_info['port'],
+                            'baudrate': device_info.get('baudrate', 500000),
+                            'connected': True,
+                            'device_id': device_info.get('id')
+                        }
                         
-                        # 更新按钮
-                        button_widget = self.table_connected.cellWidget(row, 6)
-                        if button_widget:
-                            layout = button_widget.layout()
-                            if layout and layout.itemAt(0):
-                                btn = layout.itemAt(0).widget()
-                                if btn:
-                                    btn.setText("断开")
-                                    btn.clicked.disconnect()
-                                    btn.clicked.connect(lambda checked, r=row: self.disconnect_single_device(r))
-                    
+                        self.add_device_to_connected(device_data)
+                        
+                        # 更新最后添加的行的状态
+                        row = len(self.connected_devices) - 1
+                        if row >= 0:
+                            # 更新状态显示
+                            status_item = QTableWidgetItem("✅ 已连接")
+                            status_item.setForeground(QColor(0, 128, 0))
+                            self.table_connected.setItem(row, 4, status_item)
+                            
+                            # 更新按钮
+                            button_widget = self.table_connected.cellWidget(row, 6)
+                            if button_widget:
+                                layout = button_widget.layout()
+                                if layout and layout.itemAt(0):
+                                    btn = layout.itemAt(0).widget()
+                                    if btn:
+                                        btn.setText("断开")
+                                        btn.clicked.disconnect()
+                                        btn.clicked.connect(partial(self.disconnect_single_device, row))
+            
+            print("DEBUG: 加载已连接设备完成")
+            
         except Exception as e:
             print(f"加载已连接设备失败: {e}")
-            # 这不是致命错误，可以继续
+            import traceback
+            traceback.print_exc()
     def add_existing_device_to_table(self, device_info):
         """添加已存在的设备到表格"""
         # 检查是否已存在
@@ -159,7 +177,21 @@ class EnhancedConnectDialog(QDialog):
         
         layout.addLayout(button_layout)
         self.setLayout(layout)
-    
+    def create_button_handler(self, row, handler_type):
+        """创建按钮处理器工厂函数"""
+        if handler_type == 'connect':
+            def handler():
+                self.connect_single_device(row)
+            return handler
+        elif handler_type == 'disconnect':
+            def handler():
+                self.disconnect_single_device(row)
+            return handler
+        elif handler_type == 'remove':
+            def handler():
+                self.remove_device(row)
+            return handler
+        return None
     def create_available_devices_panel(self):
         """创建可用硬件面板"""
         panel = QGroupBox("📋 可用硬件接口")
@@ -426,20 +458,26 @@ class EnhancedConnectDialog(QDialog):
             button_layout = QHBoxLayout()
             button_layout.setContentsMargins(2, 2, 2, 2)
             
-            btn_connect = QPushButton("连接")
-            btn_connect.clicked.connect(lambda checked, r=row: self.connect_single_device(r))
+            # 连接/断开按钮
+            if device_info.get('connected', False):
+                btn_connect = QPushButton("断开")
+                # 使用partial避免lambda变量捕获问题
+                btn_connect.clicked.connect(partial(self.disconnect_single_device, row))
+            else:
+                btn_connect = QPushButton("连接")
+                btn_connect.clicked.connect(partial(self.connect_single_device, row))
             button_layout.addWidget(btn_connect)
             
-            # ✅ 确保移除按钮存在
+            # 移除按钮
             btn_remove = QPushButton("移除")
+            btn_remove.clicked.connect(partial(self.remove_device, row))
+            button_layout.addWidget(btn_remove)
             # 使用闭包函数避免lambda变量捕获问题
             def create_remove_handler(row_num):
                 def handler():
                     self.remove_device(row_num)
                 return handler
-            btn_remove.clicked.connect(create_remove_handler(row))
-            button_layout.addWidget(btn_remove)
-            
+                      
             button_widget.setLayout(button_layout)
             self.table_connected.setCellWidget(row, 6, button_widget)
             
@@ -545,21 +583,31 @@ class EnhancedConnectDialog(QDialog):
             traceback.print_exc()
     def disconnect_single_device(self, row):
         """断开单个设备"""
-        if row >= len(self.connected_devices):
+        print(f"DEBUG: 断开设备，行号: {row}")
         
+        if row >= len(self.connected_devices):
+            print(f"DEBUG: 行号无效")
             return
+        
         device_info = self.connected_devices[row]
+        device_name = device_info.get('name', '未知设备')
         
         try:
-            # 断开设备
+            # 1. 断开can_manager连接
+            from src.hardware.can_manager import can_manager
             can_manager.disconnect(device_info['port'])
             
-            # 更新状态
+            # 2. 断开multi_can_manager连接
+            from src.hardware.multi_can_manager import multi_can_manager
+            device_id = f"{device_info['type']}_{device_info['port']}"
+            multi_can_manager.disconnect_device(device_id)
+            
+            # 3. 更新表格状态
             status_item = QTableWidgetItem("未连接")
-            status_item.setForeground(QColor(255, 0, 0))  # 红色
+            status_item.setForeground(QColor(255, 0, 0))
             self.table_connected.setItem(row, 4, status_item)
             
-            # 更新按钮
+            # 4. 更新按钮文本
             button_widget = self.table_connected.cellWidget(row, 6)
             if button_widget:
                 layout = button_widget.layout()
@@ -567,14 +615,20 @@ class EnhancedConnectDialog(QDialog):
                     btn = layout.itemAt(0).widget()
                     if btn:
                         btn.setText("连接")
+                        # 重新连接信号
                         btn.clicked.disconnect()
-                        btn.clicked.connect(lambda checked, r=row: self.connect_single_device(r))
+                        btn.clicked.connect(partial(self.connect_single_device, row))
             
+            # 5. 更新设备状态
             device_info['connected'] = False
-            self.lbl_status.setText(f"设备已断开: {device_info['name']}")
+            
+            self.lbl_status.setText(f"设备已断开: {device_name}")
+            print(f"DEBUG: 设备 {device_name} 断开成功")
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"断开设备失败: {e}")
+            print(f"DEBUG: 断开设备失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def connect_selected_devices(self):
         """连接所有选中的设备"""
@@ -713,35 +767,97 @@ class EnhancedConnectDialog(QDialog):
     
     def accept(self):
         """确定按钮点击"""
+        print("DEBUG: accept() 被调用")
+        
         # 收集真正连接的设备
         connected_devices = []
         
-        for device_info in self.connected_devices:
-            if device_info.get('connected', False):
-                # 验证设备是否真正连接
-                try:
-                    from src.hardware.multi_can_manager import multi_can_manager
-                    device_id = f"{device_info['type']}_{device_info['port']}"
-                    device_status = multi_can_manager.get_device_info(device_id)
-                    
-                    if device_status and device_status.get('connected', False):
-                        connected_devices.append(device_info)
-                except:
-                    pass
+        try:
+            from src.hardware.multi_can_manager import multi_can_manager
+            from src.hardware.can_manager import can_manager
+            
+            print(f"DEBUG: 检查 {len(self.connected_devices)} 个设备")
+            
+            for i, device_info in enumerate(self.connected_devices):
+                device_name = device_info.get('name', f'设备{i}')
+                is_connected_in_table = device_info.get('connected', False)
+                
+                print(f"DEBUG: 设备 {device_name} - 表格状态: {is_connected_in_table}")
+                
+                # 验证实际连接状态
+                device_id = f"{device_info['type']}_{device_info['port']}"
+                device_status = multi_can_manager.get_device_info(device_id)
+                
+                is_actually_connected = False
+                if device_status:
+                    is_actually_connected = device_status.get('connected', False)
+                    print(f"DEBUG:   multi_can_manager状态: {is_actually_connected}")
+                
+                # 如果表格显示已连接但实际未连接，尝试连接
+                if is_connected_in_table and not is_actually_connected:
+                    print(f"DEBUG:   状态不一致，尝试重新连接...")
+                    try:
+                        from src.hardware.can_manager import DeviceType
+                        type_map = {
+                            'virtual': DeviceType.VIRTUAL,
+                            'ni_8502': DeviceType.NI_8502,
+                            'kvaser': DeviceType.Kvaser
+                        }
+                        
+                        device_type = type_map.get(device_info['type'])
+                        if device_type:
+                            success = can_manager.connect(
+                                device_type, 
+                                device_info['port'], 
+                                device_info.get('baudrate', 500000)
+                            )
+                            
+                            if success:
+                                # 确保在multi_can_manager中
+                                if device_id not in multi_can_manager.devices:
+                                    multi_can_manager.add_device(
+                                        device_type=device_info['type'],
+                                        port=device_info['port'],
+                                        baudrate=device_info.get('baudrate', 500000),
+                                        name=device_info['name']
+                                    )
+                                multi_can_manager.connect_device(device_id)
+                                is_actually_connected = True
+                                print(f"DEBUG:   重新连接成功")
+                    except Exception as e:
+                        print(f"DEBUG:   重新连接失败: {e}")
+                
+                if is_actually_connected:
+                    connected_devices.append({
+                        'name': device_info['name'],
+                        'type': device_info['type'],
+                        'port': device_info['port'],
+                        'baudrate': device_info.get('baudrate', 500000),
+                        'connected': True,
+                        'device_id': device_id
+                    })
+                    print(f"DEBUG:   添加到已连接列表")
+        
+        except Exception as e:
+            print(f"DEBUG: 收集设备状态时出错: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        print(f"DEBUG: 找到 {len(connected_devices)} 个真正连接的设备")
         
         if not connected_devices:
             QMessageBox.warning(
                 self, 
                 "警告", 
-                "没有已连接的设备\n\n"
+                "没有检测到已连接的设备\n\n"
                 "请确保：\n"
                 "1. 点击设备对应的'连接'按钮\n"
-                "2. 等待连接状态变为'已连接'\n"
-                "3. 再点击'完成'"
+                "2. 等待连接状态变为'已连接'（绿色）\n"
+                "3. 再点击'完成'按钮"
             )
             return  # 不关闭对话框
         
-        # ✅ 修复：确保发射信号时有参数
+        # 发射信号
         self.devices_connected.emit(connected_devices)
         
         super().accept()
