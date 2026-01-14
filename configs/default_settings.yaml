@@ -1,0 +1,41 @@
+# 重型车CAN监控工具 - 默认配置
+
+app:
+  name: "重型车CAN监控工具"
+  version: "1.0.0"
+  author: "YourName"
+  
+ui:
+  language: "zh_CN"
+  theme: "light"  # light, dark
+  font_size: 10
+  refresh_rate: 100  # Hz
+  
+can:
+  default_baudrate: 500000
+  default_interface: "auto"
+  
+hardware:
+  ni_8502:
+    default_port: "Dev1/CNI0"
+    supported_baudrates: [10000, 20000, 50000, 100000, 125000, 250000, 500000, 800000, 1000000]
+  
+  kvaser:
+    default_channel: 0
+    supported_baudrates: [10000, 20000, 50000, 100000, 125000, 250000, 500000, 800000, 1000000]
+
+recording:
+  default_format: "csv"  # csv, sqlite, both
+  default_directory: "./outputs"
+  auto_timestamp: true
+  max_file_size_mb: 100
+  
+signals:
+  max_selected: 20
+  default_refresh_rate: 100  # Hz
+  save_config_on_exit: true
+  
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file_max_size: 10  # MB
+  file_backup_count: 5
