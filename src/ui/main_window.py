@@ -331,37 +331,43 @@ class MainWindow(QMainWindow):
             
             dialog = EnhancedConnectDialog(self)
             
-            def on_devices_connected(device_list):
-                """设备连接完成后的处理"""
-                if device_list:
-                    # 更新设备显示
-                    self.update_device_display(device_list)
-                    
-                    connected_count = len(device_list)
-                    if connected_count > 0:
-                        self.btn_import_dbc.setEnabled(True)
-                        self.btn_disconnect_all.setEnabled(True)
-                        self.btn_start.setEnabled(True)
-                        
-                        self.lbl_main_status.setText(f"✅ 已连接 {connected_count} 个设备")
-                        self.status_bar.showMessage(f"设备连接成功: {connected_count} 个设备就绪", 3000)
-                        
-                        # 自动开始监控
-                        if self.btn_start.text() == "▶️ 开始监控":
-                            self.start_monitoring()
-                    else:
-                        self.lbl_main_status.setText("⚠️ 无设备连接")
-            
-            dialog.devices_connected.connect(on_devices_connected)
+            # ✅ 修复：正确连接信号
+            dialog.devices_connected.connect(self.on_devices_connected)
             
             # 显示对话框
-            if dialog.exec_() == QDialog.Accepted:
-                print("硬件连接配置完成")
+            result = dialog.exec_()
             
+            if result == QDialog.Accepted:
+                print("硬件连接配置完成")
+            else:
+                print("硬件连接已取消")
+                
         except Exception as e:
             QMessageBox.critical(self, "错误", f"打开硬件连接对话框失败: {e}")
             import traceback
             traceback.print_exc()
+    def on_devices_connected(self, device_list):
+        """设备连接完成后的处理"""
+        if device_list:
+            # 更新设备显示
+            self.update_device_display(device_list)
+            
+            connected_count = len(device_list)
+            if connected_count > 0:
+                self.btn_import_dbc.setEnabled(True)
+                self.btn_disconnect_all.setEnabled(True)
+                self.btn_start.setEnabled(True)
+                
+                self.lbl_main_status.setText(f"✅ 已连接 {connected_count} 个设备")
+                self.status_bar.showMessage(f"设备连接成功: {connected_count} 个设备就绪", 3000)
+                
+                # 自动开始监控
+                if self.btn_start.text() == "▶️ 开始监控":
+                    self.start_monitoring()
+        else:
+            self.lbl_main_status.setText("⚠️ 无设备连接")
+            QMessageBox.warning(self, "警告", "没有设备成功连接，请检查连接设置")
+    
 
     def update_device_display(self, device_list):
         """更新设备显示"""
@@ -705,7 +711,7 @@ class MainWindow(QMainWindow):
             
             # 更新按钮状态
             if messages:
-                self.btn_config.setEnabled(True)
+                self.btn_signal_config.setEnabled(True)
                 
             # 显示提示
             QMessageBox.information(

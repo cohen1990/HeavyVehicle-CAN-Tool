@@ -109,6 +109,13 @@ class CANManager:
         
         try:
             if device_type == DeviceType.VIRTUAL:
+                # ✅ 修复：先检查是否已连接，避免重复创建
+                if port in self.devices:
+                    try:
+                        self.devices[port]['bus'].shutdown()
+                    except:
+                        pass
+                
                 # 虚拟设备连接
                 bus = self.can_interface.Bus(
                     interface='virtual',
