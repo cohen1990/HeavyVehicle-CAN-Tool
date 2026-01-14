@@ -484,7 +484,132 @@ class AdvancedSignalDialog(QDialog):
         buttons.addWidget(self.btn_cancel)
         
         return buttons
+        # 以下为缺失的业务逻辑方法
     
+    def on_limit_changed(self, value):
+        """信号数量限制改变"""
+        self.signal_limit = value
+        self.lbl_selected.setText(f"⭐ 已选: 0/{value}")
+    
+    def filter_signals(self, text):
+        """过滤信号"""
+        # 这里需要实现信号过滤逻辑
+        pass
+    
+    def load_dbc_signals(self):
+        """加载DBC信号"""
+        # 这里需要实现从DBC加载信号的逻辑
+        pass
+    
+    def add_signal_item(self, tree_item):
+        """从树节点添加信号"""
+        # 这里需要实现添加信号逻辑
+        pass
+    
+    def remove_row(self, row):
+        """移除指定行"""
+        # 这里需要实现移除行逻辑
+        pass
+    
+    def clear_selected(self):
+        """清空已选信号"""
+        # 这里需要实现清空逻辑
+        pass
+    
+    def expand_all(self):
+        """展开所有"""
+        # 这里需要实现展开逻辑
+        pass
+    
+    def collapse_all(self):
+        """折叠所有"""
+        # 这里需要实现折叠逻辑
+        pass
+    
+    def select_current_message(self):
+        """选择当前消息"""
+        # 这里需要实现选择逻辑
+        pass
+    
+    def on_signal_double_clicked(self, item, column):
+        """双击信号处理"""
+        # 这里需要实现双击逻辑
+        pass
+    
+    def add_selected(self):
+        """添加选中的信号"""
+        # 这里需要实现添加逻辑
+        pass
+    
+    def show_tree_context_menu(self, position):
+        """显示树形控件右键菜单"""
+        # 这里需要实现右键菜单逻辑
+        pass
+    
+    def move_signal_up(self):
+        """上移信号"""
+        # 这里需要实现上移逻辑
+        pass
+    
+    def move_signal_down(self):
+        """下移信号"""
+        # 这里需要实现下移逻辑
+        pass
+    
+    def edit_selected_signal(self):
+        """编辑选中信号"""
+        # 这里需要实现编辑逻辑
+        pass
+    
+    def remove_selected(self):
+        """移除选中信号"""
+        # 这里需要实现移除逻辑
+        pass
+    
+    def on_cell_double_clicked(self, row, column):
+        """单元格双击"""
+        # 这里需要实现双击单元格逻辑
+        pass
+    
+    def pick_color(self):
+        """选择颜色"""
+        # 这里需要实现颜色选择逻辑
+        pass
+    
+    def save_edit(self):
+        """保存编辑"""
+        # 这里需要实现保存逻辑
+        pass
+    
+    def export_configuration(self):
+        """导出配置"""
+        # 这里需要实现导出逻辑
+        pass
+    
+    def import_configuration(self):
+        """导入配置"""
+        # 这里需要实现导入逻辑
+        pass
+    
+    def generate_template(self):
+        """生成模板"""
+        # 这里需要实现模板生成逻辑
+        pass
+    
+    def load_preset(self):
+        """加载预设"""
+        # 这里需要实现预设加载逻辑
+        pass
+    
+    def apply_changes(self):
+        """应用更改"""
+        # 这里需要实现应用逻辑
+        pass
+    
+    def update_stats(self):
+        """更新统计"""
+        # 这里需要实现统计更新逻辑
+        pass
     # 以下为业务逻辑方法（需要你根据原有代码补充完整）
     # filter_signals, load_dbc_signals, add_signal_item, remove_row等
     # ...
