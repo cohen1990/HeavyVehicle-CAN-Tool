@@ -466,6 +466,53 @@ class DBCManager:
             info += f"  ... 还有 {len(self.skipped_messages) - 10} 个\n"
         
         return info
-
+    
+    def save_signal_configs(self, configs):
+        """保存信号配置"""
+        try:
+            if not self.signal_config_path:
+                config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)
+                self.signal_config_path = os.path.join(config_dir, "signal_configs.json")
+            
+            with open(self.signal_config_path, 'w', encoding='utf-8') as f:
+                json.dump(configs, f, ensure_ascii=False, indent=2)
+            
+            print(f"信号配置已保存到: {self.signal_config_path}")
+            
+        except Exception as e:
+            print(f"保存信号配置失败: {e}")
+    
+    def load_signal_configs(self):
+        """加载信号配置"""
+        try:
+            if not self.signal_config_path:
+                config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
+                self.signal_config_path = os.path.join(config_dir, "signal_configs.json")
+            
+            if os.path.exists(self.signal_config_path):
+                with open(self.signal_config_path, 'r', encoding='utf-8') as f:
+                    configs = json.load(f)
+                
+                print(f"从 {self.signal_config_path} 加载了 {len(configs)} 个信号配置")
+                return configs
+        
+        except Exception as e:
+            print(f"加载信号配置失败: {e}")
+        
+        return []
+    
+    def get_signal_by_name(self, signal_name):
+        """根据信号名称查找信号"""
+        if not self.db:
+            return None
+        
+        for message in self.db.messages:
+            for signal in message.signals:
+                if signal.name == signal_name:
+                    return signal
+        
+        return None
 # 全局DBC管理器实例
 dbc_manager = DBCManager()

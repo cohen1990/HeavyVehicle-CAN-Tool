@@ -785,59 +785,167 @@ class MainWindow(QMainWindow):
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"导出配置失败: {e}")
+
+
     def on_signal_config_clicked(self):
-        """信号配置按钮点击"""
+        """信号配置按钮点击事件"""
         try:
-            # 检查是否已加载DBC
-            messages = dbc_manager.get_all_messages()
-            if not messages:
-                QMessageBox.warning(
-                    self, 
-                    "警告", 
-                    "请先导入DBC文件\n\n"
-                    "操作步骤:\n"
-                    "1. 连接硬件设备\n"
-                    "2. 导入DBC文件\n"
-                    "3. 配置监控信号"
-                )
-                return
-            
-            from src.ui.advanced_signal_dialog import AdvancedSignalDialog
-            
-            dialog = AdvancedSignalDialog(self)
-            
-            def on_signals_updated():
-                """信号更新完成后的处理"""
-                # 更新信号表格显示
-                self.update_signal_table_from_config()
-                
-                # 更新状态栏
-                status = signal_config.get_signal_status()
-                self.status_bar.showMessage(
-                    f"信号配置完成: {status['total_selected']} 个信号", 3000
-                )
-                
-                # 启用记录按钮
-                if status['total_selected'] > 0:
-                    self.btn_record.setEnabled(True)
-                
-                QMessageBox.information(
+            # 检查是否已经加载了DBC文件
+            if self.dbc_manager is None or not hasattr(self.dbc_manager, 'db'):
+                reply = QMessageBox.question(
                     self,
-                    "配置完成",
-                    f"已成功配置 {status['total_selected']} 个信号\n\n"
-                    f"提示: 现在可以开始监控和记录数据"
+                    "提示",
+                    "尚未加载DBC文件，是否要现在加载？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
                 )
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    # 触发加载DBC文件的方法
+                    self.load_dbc_file()
+                    if self.dbc_manager is None:
+                        return
+                else:
+                    # 用户选择不加载DBC，仍然打开配置对话框
+                    print("用户选择不加载DBC，打开空配置对话框")
             
-            dialog.signals_updated.connect(on_signals_updated)
+            # 创建高级信号配置对话框，传递dbc_manager
+            dialog = AdvancedSignalDialog(self, self.dbc_manager)
+            
+            # 设置对话框样式
+            dialog.setStyleSheet("""
+                QDialog {
+                    background-color: #f5f5f5;
+                }
+                QGroupBox {
+                    font-weight: bold;
+                    border: 2px solid #cccccc;
+                    border-radius: 5px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+                QTableWidget {
+                    background-color: white;
+                    border: 1px solid #cccccc;
+                    gridline-color: #e0e0e0;
+                }
+                QTableWidget::item {
+                    padding: 5px;
+                }
+                QTableWidget::item:selected {
+                    background-color: #4a9cff;
+                    color: white;
+                }
+                QPushButton {
+                    background-color: #5c6bc0;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #3f51b5;
+                }
+                QPushButton:disabled {
+                    background-color: #cccccc;
+                    color: #666666;
+                }
+                QLineEdit {
+                    padding: 6px;
+                    border: 1px solid #cccccc;
+                    border-radius: 4px;
+                }
+                QLabel {
+                    font-weight: bold;
+                }
+            """)
             
             # 显示对话框
-            if dialog.exec_() == QDialog.Accepted:
-                print(f"信号配置完成，选择了 {len(signal_config.selected_signals)} 个信号")
+            result = dialog.exec()
+            
+            if result == QDialog.DialogCode.Accepted:
+                # 获取配置结果
+                signal_configs = dialog.signal_configs
+                
+                # 过滤有效配置
+                valid_configs = []
+                for config in signal_configs:
+                    if config.get('name', '').strip():  # 只要有信号名称就认为是有效配置
+                        valid_configs.append(config)
+                
+                if valid_configs:
+                    # 保存配置到文件
+                    self.save_signal_configs(valid_configs)
+                    
+                    # 更新UI显示
+                    self.update_signal_config_display(valid_configs)
+                    
+                    # 显示成功消息
+                    QMessageBox.information(self, "成功", 
+                        f"已成功配置 {len(valid_configs)} 个信号")
+                    
+                    # 保存到dbc_manager
+                    self.save_configs_to_dbc_manager(valid_configs)
+                else:
+                    QMessageBox.information(self, "提示", 
+                        "没有保存任何信号配置")
             
         except Exception as e:
-            QMessageBox.critical(self, "错误", f"打开信号配置对话框失败: {e}")
+            print(f"打开信号配置对话框时出错: {e}")
             import traceback
-            traceback.print_exc()    
+            traceback.print_exc()
+            QMessageBox.critical(self, "错误", 
+                f"打开信号配置对话框时出错:\n{str(e)}")
+            
+    def on_signals_updated():
+        """信号更新完成后的处理"""
+        # 更新信号表格显示
+        self.update_signal_table_from_config()
+        
+        # 更新状态栏
+        status = signal_config.get_signal_status()
+        self.status_bar.showMessage(
+            f"信号配置完成: {status['total_selected']} 个信号", 3000
+        )
+        
+        # 启用记录按钮
+        if status['total_selected'] > 0:
+            self.btn_record.setEnabled(True)
+        
+        QMessageBox.information(
+            self,
+            "配置完成",
+            f"已成功配置 {status['total_selected']} 个信号\n\n"
+            f"提示: 现在可以开始监控和记录数据"
+        )
+    def save_configs_to_dbc_manager(self, configs):
+        """将配置保存到dbc_manager"""
+        if self.dbc_manager is None:
+            return
+        
+        try:
+            # 在dbc_manager中创建自定义信号配置属性
+            if not hasattr(self.dbc_manager, 'signal_configs'):
+                self.dbc_manager.signal_configs = []
+            
+            # 更新配置
+            self.dbc_manager.signal_configs = configs
+            
+            print(f"已将 {len(configs)} 个配置保存到dbc_manager")
+            
+            # 可以选择保存到文件
+            if hasattr(self.dbc_manager, 'save_signal_configs'):
+                self.dbc_manager.save_signal_configs(configs)
+            
+        except Exception as e:
+            print(f"保存配置到dbc_manager失败: {e}")            
+    
     def on_config_clicked(self):
         """配置按钮点击 - 增强版"""
         try:
