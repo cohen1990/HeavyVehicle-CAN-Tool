@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self.status_timer.timeout.connect(self.update_status_display)
         self.status_timer.start(1000)  # 每秒更新一次
         
+        self.dbc_manager = None
         self.init_ui()
         self.setup_connections()
         self.test_mode = None

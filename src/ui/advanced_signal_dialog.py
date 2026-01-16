@@ -1,12 +1,12 @@
 # advanced_signal_dialog.py
-from PyQt6.QtWidgets import (
+# 将第2-12行的 PyQt6 改为 PyQt5
+from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QTableWidget, 
     QTableWidgetItem, QPushButton, QLabel, QLineEdit, QRadioButton,
     QWidget, QMessageBox, QHeaderView
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
-
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
 class AdvancedSignalDialog(QDialog):
     def __init__(self, parent=None, dbc_manager=None):
