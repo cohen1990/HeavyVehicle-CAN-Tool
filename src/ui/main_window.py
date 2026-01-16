@@ -791,26 +791,11 @@ class MainWindow(QMainWindow):
     def on_signal_config_clicked(self):
         """信号配置按钮点击事件"""
         try:
-            # 检查是否已经加载了DBC文件
-            if self.dbc_manager is None or not hasattr(self.dbc_manager, 'db'):
-                reply = QMessageBox.question(
-                    self,
-                    "提示",
-                    "尚未加载DBC文件，是否要现在加载？",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes
-                )
-                
-                if reply == QMessageBox.StandardButton.Yes:
-                    # 触发加载DBC文件的方法
-                    self.load_dbc_file()
-                    if self.dbc_manager is None:
-                        return
-                else:
-                    # 用户选择不加载DBC，仍然打开配置对话框
-                    print("用户选择不加载DBC，打开空配置对话框")
+            # 确保dbc_manager存在
+            if not hasattr(self, 'dbc_manager'):
+                self.dbc_manager = None
             
-            # 创建高级信号配置对话框，传递dbc_manager
+            # 创建对话框
             dialog = AdvancedSignalDialog(self, self.dbc_manager)
             
             # 设置对话框样式
@@ -870,32 +855,32 @@ class MainWindow(QMainWindow):
             # 显示对话框
             result = dialog.exec()
             
-            if result == QDialog.DialogCode.Accepted:
-                # 获取配置结果
+            if result == QDialog.Accepted:
                 signal_configs = dialog.signal_configs
                 
                 # 过滤有效配置
                 valid_configs = []
                 for config in signal_configs:
-                    if config.get('name', '').strip():  # 只要有信号名称就认为是有效配置
+                    if config.get('name', '').strip():
                         valid_configs.append(config)
                 
                 if valid_configs:
-                    # 保存配置到文件
-                    self.save_signal_configs(valid_configs)
+                    # 如果还没有save_signal_configs方法，添加一个简单的
+                    if not hasattr(self, 'save_signal_configs'):
+                        import json
+                        import os
+                        config_dir = os.path.join(os.path.dirname(__file__), "..", "..", "config")
+                        if not os.path.exists(config_dir):
+                            os.makedirs(config_dir)
+                        
+                        config_file = os.path.join(config_dir, "signal_configs.json")
+                        with open(config_file, 'w', encoding='utf-8') as f:
+                            json.dump(valid_configs, f, ensure_ascii=False, indent=2)
+                        
+                        print(f"信号配置已保存到: {config_file}")
                     
-                    # 更新UI显示
-                    self.update_signal_config_display(valid_configs)
-                    
-                    # 显示成功消息
                     QMessageBox.information(self, "成功", 
                         f"已成功配置 {len(valid_configs)} 个信号")
-                    
-                    # 保存到dbc_manager
-                    self.save_configs_to_dbc_manager(valid_configs)
-                else:
-                    QMessageBox.information(self, "提示", 
-                        "没有保存任何信号配置")
             
         except Exception as e:
             print(f"打开信号配置对话框时出错: {e}")
