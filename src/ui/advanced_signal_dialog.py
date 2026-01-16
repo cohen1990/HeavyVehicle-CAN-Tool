@@ -194,35 +194,82 @@ class AdvancedSignalDialog(QDialog):
         """获取所有CAN信号"""
         signals = []
         
-        if self.dbc_manager and hasattr(self.dbc_manager, 'db'):
-            db = self.dbc_manager.db
+        if self.dbc_manager:
+            print("DEBUG [get_all_signals]: 开始从dbc_manager提取信号...")
             
-            # 遍历所有消息
-            for message in db.messages:
-                message_id = message.frame_id
+            # 方法A: 直接访问 messages 字典
+            if hasattr(self.dbc_manager, 'messages'):
+                messages_dict = self.dbc_manager.messages
+                print(f"DEBUG: 找到 messages 字典，包含 {len(messages_dict)} 个消息")
                 
-                # 遍历消息中的所有信号
-                for signal in message.signals:
-                    signal_info = {
-                        'name': signal.name,
-                        'pgn': f"{message_id:#x}",  # 十六进制显示
-                        'source_address': '',
-                        'start_bit': signal.start_bit,
-                        'length': signal.size,
-                        'factor': signal.scale,
-                        'offset': signal.offset,
-                        'unit': signal.unit,
-                        'comment': signal.comment,
-                        'message_name': message.name,
-                        'message_id': message_id,
-                        'byte_order': signal.byte_order,
-                        'is_signed': signal.is_signed,
-                        'min': signal.minimum,
-                        'max': signal.maximum
-                    }
-                    signals.append(signal_info)
+                for msg_id, message in messages_dict.items():
+                    # 确保 message 对象有 signals 属性
+                    if hasattr(message, 'signals'):
+                        # 检查 signals 的类型（可能是列表、字典或其他）
+                        msg_signals = message.signals
+                        
+                        # 如果是字典（signal_name -> signal_object）
+                        if isinstance(msg_signals, dict):
+                            for signal_name, signal in msg_signals.items():
+                                signal_info = self._extract_signal_info(message, signal, signal_name)
+                                if signal_info:
+                                    signals.append(signal_info)
+                        # 如果是列表或其他可迭代对象
+                        elif hasattr(msg_signals, '__iter__'):
+                            for signal in msg_signals:
+                                signal_name = getattr(signal, 'name', '')
+                                signal_info = self._extract_signal_info(message, signal, signal_name)
+                                if signal_info:
+                                    signals.append(signal_info)
+                        else:
+                            print(f"DEBUG: 消息 {message.name} 的 signals 属性类型无法处理: {type(msg_signals)}")
+            
+            # 方法B: 尝试调用 get_all_messages 方法（备用方案）
+            elif hasattr(self.dbc_manager, 'get_all_messages'):
+                try:
+                    all_messages = self.dbc_manager.get_all_messages()
+                    print(f"DEBUG: 通过 get_all_messages() 获取到 {len(all_messages)} 个消息")
+                    # ... 类似上面的处理逻辑 ...
+                except Exception as e:
+                    print(f"DEBUG: 调用 get_all_messages 失败: {e}")
+            
+            print(f"DEBUG [get_all_signals]: 总共提取到 {len(signals)} 个信号")
         
         return signals
+
+    def _extract_signal_info(self, message, signal, signal_name=''):
+        """从信号对象中提取信息"""
+        print(f"DEBUG: 处理消息 {getattr(message, 'name', 'N/A')}，信号对象类型: {type(signal)}")
+        print(f"DEBUG: 信号对象属性: {[a for a in dir(signal) if not a.startswith('_')][:10]}")
+        try:
+            # 获取信号名称（优先使用参数传入的名称）
+            if not signal_name and hasattr(signal, 'name'):
+                signal_name = signal.name
+            
+            signal_info = {
+                'name': signal_name,
+                'pgn': f"0x{getattr(message, 'id', 0):X}",  # 使用消息ID作为PGN
+                'source_address': '',  # 可能需要从消息ID或其他地方解析
+                'start_bit': getattr(signal, 'start_bit', ''),
+                'length': getattr(signal, 'size', getattr(signal, 'length', '')),
+                'factor': getattr(signal, 'factor', getattr(signal, 'scale', 1.0)),
+                'offset': getattr(signal, 'offset', 0.0),
+                'unit': getattr(signal, 'unit', ''),
+                'comment': getattr(signal, 'comment', getattr(signal, 'description', '')),
+                'message_name': getattr(message, 'name', ''),
+                'message_id': getattr(message, 'id', 0),
+                'byte_order': getattr(signal, 'byte_order', ''),
+                'is_signed': getattr(signal, 'is_signed', False),
+                'min': getattr(signal, 'minimum', ''),
+                'max': getattr(signal, 'maximum', ''),
+                # 添加原始对象引用以便调试
+                '_message_obj': message,
+                '_signal_obj': signal
+            }
+            return signal_info
+        except Exception as e:
+            print(f"DEBUG: 提取信号信息时出错: {e}")
+            return None
     
     def get_signal_data_from_row(self, row):
         """从表格行获取信号数据"""

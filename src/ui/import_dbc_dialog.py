@@ -39,7 +39,46 @@ class DBCImportWorker(QThread):
                 
                 # 使用分批加载（最佳方案）
                 success = self.dbc_manager.load_dbc_file_batch(filepath, batch_size=500)
+                # === 关键：加载后立即进行“全面体检” ===
+                print(f"\n=== 对 dbc_manager 进行全面检查 ===")
+                print(f"1. dbc_manager 对象: {self.dbc_manager}")
+                print(f"2. dbc_manager 类型: {type(self.dbc_manager)}")                
+                # 检查所有属性
+                print(f"3. dbc_manager 的所有属性:")
+                for attr_name in dir(self.dbc_manager):
+                    # 过滤掉私有方法，只查看重要属性
+                    if not attr_name.startswith('_'):
+                        try:
+                            attr_value = getattr(self.dbc_manager, attr_name)
+                            # 特别关注可能存储数据的属性
+                            if attr_name in ['db', 'database', '_db', '_database', 'messages', 'signals']:
+                                print(f"   !! {attr_name}: {attr_value} (类型: {type(attr_value)})")
+                        except:
+                            pass
                 
+                # 专门检查 db 属性
+                if hasattr(self.dbc_manager, 'db'):
+                    db = self.dbc_manager.db
+                    print(f"4. db 属性详情:")
+                    print(f"   值: {db}")
+                    print(f"   类型: {type(db)}")
+                    if db:
+                        print(f"   db 的所有属性: {[a for a in dir(db) if not a.startswith('_')][:10]}...")
+                else:
+                    print(f"4. dbc_manager 没有 'db' 属性")
+                    
+                # 尝试直接调用 get_all_messages 看返回什么
+                print(f"5. 测试 get_all_messages() 方法:")
+                try:
+                    all_msgs = self.dbc_manager.get_all_messages()
+                    print(f"   调用成功，返回类型: {type(all_msgs)}， 长度: {len(all_msgs) if hasattr(all_msgs, '__len__') else '无长度属性'}")
+                    if all_msgs and len(all_msgs) > 0:
+                        print(f"   第一个元素: {all_msgs[0]}， 类型: {type(all_msgs[0])}")
+                except Exception as e:
+                    print(f"   调用失败: {e}")
+                print(f"=== 检查结束 ===\n")
+                # ==========================================
+
                 if success:
                     success_count += 1
                     msg_count = len(self.dbc_manager.get_all_messages())
@@ -279,17 +318,49 @@ class ImportDBCDialog(QDialog):
             QMessageBox.information(self, "完成", "DBC文件导入成功！")
         else:
             QMessageBox.warning(self, "警告", "导入完成，但有文件失败，请检查日志")
+
     def update_parent_dbc_manager(self):
         """将本对话框的dbc_manager更新到父窗口"""
         parent = self.parent()
         if parent and hasattr(parent, 'dbc_manager'):
             parent.dbc_manager = self.dbc_manager
-            print(f"ImportDBCDialog: 已将dbc_manager同步到父窗口(MainWindow)")
-            # 可选：验证一下数据
-            if hasattr(self.dbc_manager, 'db') and self.dbc_manager.db:
-                print(f"  当前DBC消息数量: {len(self.dbc_manager.db.messages)}")
+            print(f"ImportDBCDialog: 已将dbc_manager同步到父窗口")
+            
+            # 统计消息和信号
+            message_count = 0
+            signal_count = 0
+            
+            if hasattr(self.dbc_manager, 'messages'):
+                messages_dict = self.dbc_manager.messages
+                message_count = len(messages_dict)
+                
+                # 统计信号
+                for msg_id, message in messages_dict.items():
+                    if hasattr(message, 'signals'):
+                        msg_signals = message.signals
+                        # 如果是字典
+                        if isinstance(msg_signals, dict):
+                            signal_count += len(msg_signals)
+                        # 如果是列表或其他可迭代对象
+                        elif hasattr(msg_signals, '__iter__'):
+                            signal_count += len(list(msg_signals))
+            
+            print(f"  统计结果: {message_count} 个消息, {signal_count} 个信号")
+            
+            # 如果信号为0但消息不为0，需要进一步检查
+            if message_count > 0 and signal_count == 0:
+                print(f"  警告: 找到 {message_count} 个消息，但信号数为0。检查信号提取方式...")
+                # 采样检查第一个消息
+                if messages_dict:
+                    first_msg = next(iter(messages_dict.values()))
+                    print(f"  第一个消息: {getattr(first_msg, 'name', 'N/A')}")
+                    if hasattr(first_msg, 'signals'):
+                        signals = first_msg.signals
+                        print(f"    signals属性类型: {type(signals)}")
+                        print(f"    signals内容: {signals}")
         else:
-            print("ImportDBCDialog: 父窗口不存在或没有dbc_manager属性，无法同步")    
+            print("ImportDBCDialog: 父窗口不存在或没有dbc_manager属性")
+
     def set_buttons_enabled(self, enabled: bool):
         """设置按钮状态"""
         self.btn_import.setEnabled(enabled)
