@@ -21,7 +21,7 @@ class DBCImportWorker(QThread):
     progress = pyqtSignal(int, str)  # 进度百分比, 消息
     finished = pyqtSignal(bool, str)  # 是否成功, 总结消息
     
-    def __init__(self, filepaths):
+    def __init__(self, filepaths, dbc_manager):
         super().__init__()
         self.filepaths = filepaths
         self.dbc_manager = dbc_manager
