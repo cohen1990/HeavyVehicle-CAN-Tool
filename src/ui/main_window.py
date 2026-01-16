@@ -791,9 +791,28 @@ class MainWindow(QMainWindow):
     def on_signal_config_clicked(self):
         """信号配置按钮点击事件"""
         try:
-            # 确保dbc_manager存在
-            if not hasattr(self, 'dbc_manager'):
-                self.dbc_manager = None
+            print("=== 信号配置调试信息 ===")
+            print(f"1. self.dbc_manager: {self.dbc_manager}")
+            
+            if self.dbc_manager:
+                print(f"2. hasattr(self.dbc_manager, 'db'): {hasattr(self.dbc_manager, 'db')}")
+                
+                if hasattr(self.dbc_manager, 'db'):
+                    db = self.dbc_manager.db
+                    print(f"3. db: {db}")
+                    
+                    if db:
+                        print(f"4. hasattr(db, 'messages'): {hasattr(db, 'messages')}")
+                        
+                        if hasattr(db, 'messages'):
+                            msg_count = len(db.messages)
+                            print(f"5. 消息数量: {msg_count}")
+                            
+                            # 打印前几个消息
+                            for i, msg in enumerate(list(db.messages)[:3]):
+                                print(f"   消息{i}: {msg.name} (0x{msg.frame_id:x})")
+                                if hasattr(msg, 'signals'):
+                                    print(f"   包含信号: {[s.name for s in msg.signals[:3]]}")
             
             # 创建对话框
             dialog = AdvancedSignalDialog(self, self.dbc_manager)
