@@ -24,7 +24,8 @@ class DBCImportWorker(QThread):
     def __init__(self, filepaths):
         super().__init__()
         self.filepaths = filepaths
-    
+        self.dbc_manager = dbc_manager
+        print(f"DBCImportWorker: 接收到dbc_manager: {self.dbc_manager}")
     def run(self):
         """执行导入 - 使用分批加载"""
         total_files = len(self.filepaths)
@@ -37,11 +38,11 @@ class DBCImportWorker(QThread):
                 self.progress.emit(progress, f"正在导入: {filename}")
                 
                 # 使用分批加载（最佳方案）
-                success = dbc_manager.load_dbc_file_batch(filepath, batch_size=500)
+                success = self.dbc_manager.load_dbc_file_batch(filepath, batch_size=500)
                 
                 if success:
                     success_count += 1
-                    msg_count = len(dbc_manager.get_all_messages())
+                    msg_count = len(self.dbc_manager.get_all_messages())
                     self.progress.emit(
                         int(((i + 1) / total_files) * 100),
                         f"✓ {filename}: {msg_count} 个消息"
@@ -59,7 +60,7 @@ class DBCImportWorker(QThread):
                 )
         
         # 构建总结消息
-        total_messages = len(dbc_manager.get_all_messages())
+        total_messages = len(self.dbc_manager.get_all_messages())
         summary = f"导入完成: {success_count}/{total_files} 个文件成功\n"
         summary += f"总计 {total_messages} 个消息"
         
@@ -74,6 +75,14 @@ class ImportDBCDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("导入DBC文件")
         self.setMinimumSize(500, 400)
+        if parent and hasattr(parent, 'dbc_manager') and parent.dbc_manager is not None:
+            self.dbc_manager = parent.dbc_manager
+            print("ImportDBCDialog: 复用父窗口的dbc_manager")
+        else:
+            from src.dbc.dbc_manager import DBCManager
+            self.dbc_manager = DBCManager()
+            print("ImportDBCDialog: 创建了新的dbc_manager")
+        # ---------------------------------
         
         self.import_worker = None
         self.init_ui()
@@ -231,7 +240,7 @@ class ImportDBCDialog(QDialog):
             return
         
         # 创建并启动工作线程
-        self.import_worker = DBCImportWorker(filepaths)
+        self.import_worker = DBCImportWorker(filepaths, self.dbc_manager)
         self.import_worker.progress.connect(self.update_progress)
         self.import_worker.finished.connect(self.on_import_finished)
         
@@ -264,11 +273,23 @@ class ImportDBCDialog(QDialog):
         self.update_stats()
         
         if success:
+            # --- 关键新增：导入成功后，更新父窗口的引用 ---
+            self.update_parent_dbc_manager()
             self.dbc_imported.emit()  # 发送导入完成信号
             QMessageBox.information(self, "完成", "DBC文件导入成功！")
         else:
             QMessageBox.warning(self, "警告", "导入完成，但有文件失败，请检查日志")
-    
+    def update_parent_dbc_manager(self):
+        """将本对话框的dbc_manager更新到父窗口"""
+        parent = self.parent()
+        if parent and hasattr(parent, 'dbc_manager'):
+            parent.dbc_manager = self.dbc_manager
+            print(f"ImportDBCDialog: 已将dbc_manager同步到父窗口(MainWindow)")
+            # 可选：验证一下数据
+            if hasattr(self.dbc_manager, 'db') and self.dbc_manager.db:
+                print(f"  当前DBC消息数量: {len(self.dbc_manager.db.messages)}")
+        else:
+            print("ImportDBCDialog: 父窗口不存在或没有dbc_manager属性，无法同步")    
     def set_buttons_enabled(self, enabled: bool):
         """设置按钮状态"""
         self.btn_import.setEnabled(enabled)
