@@ -800,9 +800,19 @@ class MainWindow(QMainWindow):
                 # 显示提示但不阻止打开对话框
                 QMessageBox.warning(self, "提示", 
                     "DBC管理器未初始化。可以打开配置对话框手动配置信号。")
+            print("\n" + "="*60)
+            print("[MainWindow] 即将打开信号配置对话框")
+            print(f"[MainWindow] self.dbc_manager 是否存在: {hasattr(self, 'dbc_manager')}")
+            if hasattr(self, 'dbc_manager'):
+                print(f"[MainWindow] self.dbc_manager 的值: {self.dbc_manager}")
+                if self.dbc_manager:
+                    print(f"[MainWindow] dbc_manager.messages 数量: {len(self.dbc_manager.messages)}")
+            else:
+                print("[MainWindow] 警告：self 没有 dbc_manager 属性！")            
             
             # 创建对话框
             dialog = AdvancedSignalDialog(self, self.dbc_manager)
+            print("="*60 + "\n")
             print(f"创建对话框，传入 dbc_manager: {self.dbc_manager}")
             
             # 设置对话框样式

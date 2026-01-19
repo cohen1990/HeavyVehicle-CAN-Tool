@@ -26,7 +26,6 @@ class AdvancedSignalDialog(QDialog):
             print("警告: dbc_manager 为 None!")
         
         self.dbc_manager = dbc_manager
-        self.dbc_manager = dbc_manager
         self.selected_signal = None
         self.selected_config_row = -1
         self.max_signals = 20
@@ -171,21 +170,38 @@ class AdvancedSignalDialog(QDialog):
     
     def load_signals(self):
         """加载信号到表格 - 增强版"""
-        print(f"\n=== load_signals() 开始 ===")
+        # ========== 新增：强效诊断开始 ==========
+        print("\n" + "="*60)
+        print("[DEBUG] load_signals() 方法被调用")
+        print(f"[DEBUG] self.dbc_manager: {self.dbc_manager}")
+        print(f"[DEBUG] self.dbc_manager 类型: {type(self.dbc_manager)}")
         
-        # 检查 dbc_manager
-        if not self.dbc_manager:
-            print("错误: dbc_manager 为 None，无法加载信号")
-            # 尝试从父窗口获取
-            if self.parent() and hasattr(self.parent(), 'dbc_manager'):
-                self.dbc_manager = self.parent().dbc_manager
-                print(f"从父窗口获取到 dbc_manager: {self.dbc_manager}")
-            else:
-                print("父窗口也没有 dbc_manager")
-                self.signal_table.setRowCount(0)
-                return
+        # 检查核心数据源
+        if self.dbc_manager:
+            print(f"[DEBUG] 检查 dbc_manager 关键属性:")
+            print(f"  hasattr('messages'): {hasattr(self.dbc_manager, 'messages')}")
+            print(f"  hasattr('get_all_messages'): {hasattr(self.dbc_manager, 'get_all_messages')}")
+            
+            # 立即测试 get_all_messages()
+            if hasattr(self.dbc_manager, 'get_all_messages'):
+                try:
+                    all_msgs = self.dbc_manager.get_all_messages()
+                    print(f"[DEBUG] get_all_messages() 调用成功!")
+                    print(f"[DEBUG] 返回值类型: {type(all_msgs)}")
+                    print(f"[DEBUG] 返回值长度: {len(all_msgs) if hasattr(all_msgs, '__len__') else '无长度属性'}")
+                    if all_msgs and len(all_msgs) > 0:
+                        first_msg = all_msgs[0]
+                        print(f"[DEBUG] 第一个消息对象: {first_msg}")
+                        print(f"[DEBUG] 第一个消息类型: {type(first_msg)}")
+                except Exception as e:
+                    print(f"[DEBUG] get_all_messages() 调用失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            print("[DEBUG] 致命错误: self.dbc_manager 为 None!")
         
-        print(f"使用 dbc_manager: {self.dbc_manager}")
+        print("="*60 + "\n")
+        # ========== 强效诊断结束 ==========
         
         # 获取所有信号
         signals = self.get_all_signals()
@@ -273,8 +289,9 @@ class AdvancedSignalDialog(QDialog):
     
     def get_all_signals(self):
         """获取所有CAN信号 - 简化可靠版本"""
-        print(f"\n=== get_all_signals() 开始 ===")
-        
+        # ========== 新增：方法入口诊断 ==========
+        print("\n>>> get_all_signals() 开始执行 <<<")
+        # ========== 诊断结束 ==========
         signals = []
         
         if not self.dbc_manager:
