@@ -790,32 +790,20 @@ class MainWindow(QMainWindow):
 
     def on_signal_config_clicked(self):
         """信号配置按钮点击事件"""
+        print(f"\n=== on_signal_config_clicked() 开始 ===")
+        print(f"self.dbc_manager: {self.dbc_manager}")
+        
         try:
-            print("=== 信号配置调试信息 ===")
-            print(f"1. self.dbc_manager: {self.dbc_manager}")
-            
-            if self.dbc_manager:
-                print(f"2. hasattr(self.dbc_manager, 'db'): {hasattr(self.dbc_manager, 'db')}")
-                
-                if hasattr(self.dbc_manager, 'db'):
-                    db = self.dbc_manager.db
-                    print(f"3. db: {db}")
-                    
-                    if db:
-                        print(f"4. hasattr(db, 'messages'): {hasattr(db, 'messages')}")
-                        
-                        if hasattr(db, 'messages'):
-                            msg_count = len(db.messages)
-                            print(f"5. 消息数量: {msg_count}")
-                            
-                            # 打印前几个消息
-                            for i, msg in enumerate(list(db.messages)[:3]):
-                                print(f"   消息{i}: {msg.name} (0x{msg.frame_id:x})")
-                                if hasattr(msg, 'signals'):
-                                    print(f"   包含信号: {[s.name for s in msg.signals[:3]]}")
+            # 确保有dbc_manager
+            if not self.dbc_manager:
+                print("警告: MainWindow 的 dbc_manager 为 None")
+                # 显示提示但不阻止打开对话框
+                QMessageBox.warning(self, "提示", 
+                    "DBC管理器未初始化。可以打开配置对话框手动配置信号。")
             
             # 创建对话框
             dialog = AdvancedSignalDialog(self, self.dbc_manager)
+            print(f"创建对话框，传入 dbc_manager: {self.dbc_manager}")
             
             # 设置对话框样式
             dialog.setStyleSheet("""
@@ -875,38 +863,13 @@ class MainWindow(QMainWindow):
             result = dialog.exec()
             
             if result == QDialog.Accepted:
-                signal_configs = dialog.signal_configs
-                
-                # 过滤有效配置
-                valid_configs = []
-                for config in signal_configs:
-                    if config.get('name', '').strip():
-                        valid_configs.append(config)
-                
-                if valid_configs:
-                    # 如果还没有save_signal_configs方法，添加一个简单的
-                    if not hasattr(self, 'save_signal_configs'):
-                        import json
-                        import os
-                        config_dir = os.path.join(os.path.dirname(__file__), "..", "..", "config")
-                        if not os.path.exists(config_dir):
-                            os.makedirs(config_dir)
-                        
-                        config_file = os.path.join(config_dir, "signal_configs.json")
-                        with open(config_file, 'w', encoding='utf-8') as f:
-                            json.dump(valid_configs, f, ensure_ascii=False, indent=2)
-                        
-                        print(f"信号配置已保存到: {config_file}")
-                    
-                    QMessageBox.information(self, "成功", 
-                        f"已成功配置 {len(valid_configs)} 个信号")
+                print("信号配置已保存")
+
             
         except Exception as e:
             print(f"打开信号配置对话框时出错: {e}")
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self, "错误", 
-                f"打开信号配置对话框时出错:\n{str(e)}")
             
     def on_signals_updated():
         """信号更新完成后的处理"""

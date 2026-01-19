@@ -11,6 +11,21 @@ from PyQt5.QtGui import QFont
 class AdvancedSignalDialog(QDialog):
     def __init__(self, parent=None, dbc_manager=None):
         super().__init__(parent)
+        
+        print(f"\n=== AdvancedSignalDialog 初始化 ===")
+        print(f"传入的 dbc_manager: {dbc_manager}")
+        print(f"传入的 parent: {parent}")
+        
+        if dbc_manager:
+            print(f"dbc_manager 类型: {type(dbc_manager)}")
+            print(f"是否有 messages 属性: {hasattr(dbc_manager, 'messages')}")
+            if hasattr(dbc_manager, 'messages'):
+                print(f"messages 长度: {len(dbc_manager.messages)}")
+            print(f"是否有 get_all_messages 方法: {hasattr(dbc_manager, 'get_all_messages')}")
+        else:
+            print("警告: dbc_manager 为 None!")
+        
+        self.dbc_manager = dbc_manager
         self.dbc_manager = dbc_manager
         self.selected_signal = None
         self.selected_config_row = -1
@@ -24,10 +39,37 @@ class AdvancedSignalDialog(QDialog):
         # 初始化UI
         self.init_ui()
         
+        # 立即进行诊断测试
+        print("\n" + "="*50)
+        print("对话框初始化诊断")
+        print(f"dbc_manager 是否存在: {self.dbc_manager is not None}")
+        if self.dbc_manager:
+            print(f"dbc_manager 类型: {type(self.dbc_manager)}")
+            print(f"messages 属性: {hasattr(self.dbc_manager, 'messages')}")
+            print(f"get_all_messages 方法: {hasattr(self.dbc_manager, 'get_all_messages')}")
+            
+            # 关键测试：立即尝试获取一个消息的信号
+            try:
+                if hasattr(self.dbc_manager, 'get_all_messages'):
+                    msgs = self.dbc_manager.get_all_messages()
+                    if msgs and len(msgs) > 0:
+                        first_msg = msgs[0]
+                        print(f"\n第一个消息: {getattr(first_msg, 'name', 'N/A')}")
+                        print(f"signals 属性类型: {type(getattr(first_msg, 'signals', None))}")
+                        sig_list = getattr(first_msg, 'signals', [])
+                        print(f"signals 列表长度: {len(sig_list) if isinstance(sig_list, list) else '非列表'}")
+                        if isinstance(sig_list, list) and len(sig_list) > 0:
+                            first_sig = sig_list[0]
+                            print(f"第一个信号名称: {getattr(first_sig, 'name', 'N/A')}")
+            except Exception as e:
+                print(f"诊断测试出错: {e}")
+        print("="*50 + "\n")        
+        
         # 加载数据
         self.load_signals()
         self.update_config_table()
-    
+        # 测试信号提取
+        self.test_signal_extraction()
     def init_ui(self):
         """初始化用户界面"""
         main_layout = QVBoxLayout(self)
@@ -128,48 +170,72 @@ class AdvancedSignalDialog(QDialog):
         main_layout.addLayout(button_layout)
     
     def load_signals(self):
-        """加载信号到表格"""
-        """加载信号到表格"""
-        try:
-            print("=== load_signals 开始 ===")
-            signals = self.get_all_signals()
-            print(f"获取到 {len(signals)} 个信号准备显示")
-            
-            if not signals:
-                print("警告: get_all_signals() 返回空列表")
+        """加载信号到表格 - 增强版"""
+        print(f"\n=== load_signals() 开始 ===")
+        
+        # 检查 dbc_manager
+        if not self.dbc_manager:
+            print("错误: dbc_manager 为 None，无法加载信号")
+            # 尝试从父窗口获取
+            if self.parent() and hasattr(self.parent(), 'dbc_manager'):
+                self.dbc_manager = self.parent().dbc_manager
+                print(f"从父窗口获取到 dbc_manager: {self.dbc_manager}")
+            else:
+                print("父窗口也没有 dbc_manager")
+                self.signal_table.setRowCount(0)
                 return
-                
-            self.signal_table.setRowCount(len(signals))
-            signals = self.get_all_signals()
-            self.signal_table.setRowCount(len(signals))
+        
+        print(f"使用 dbc_manager: {self.dbc_manager}")
+        
+        # 获取所有信号
+        signals = self.get_all_signals()
+        print(f"get_all_signals() 返回 {len(signals)} 个信号")
+        
+        if not signals:
+            print("警告: get_all_signals() 返回空列表")
+            print("可能的原因:")
+            print("  1. DBC数据没有信号")
+            print("  2. get_all_signals() 方法实现有误")
+            print("  3. 数据结构不匹配")
+            self.signal_table.setRowCount(0)
+            return
+        
+        # 设置表格行数
+        self.signal_table.setRowCount(len(signals))
+        print(f"设置表格行数: {len(signals)}")
+        
+        # 填充表格数据
+        print("开始填充表格数据...")
+        for row, signal in enumerate(signals):
+            # 添加单选按钮
+            radio_btn = QRadioButton()
+            radio_widget = QWidget()
+            radio_layout = QHBoxLayout(radio_widget)
+            radio_layout.addWidget(radio_btn)
+            radio_layout.setAlignment(Qt.AlignCenter)
+            radio_layout.setContentsMargins(0, 0, 0, 0)
+            self.signal_table.setCellWidget(row, 0, radio_widget)
             
-            for row, signal in enumerate(signals):
-                # 添加单选按钮
-                radio_btn = QRadioButton()
-                radio_widget = QWidget()
-                radio_layout = QHBoxLayout(radio_widget)
-                radio_layout.addWidget(radio_btn)
-                radio_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                radio_layout.setContentsMargins(0, 0, 0, 0)
-                self.signal_table.setCellWidget(row, 0, radio_widget)
-                
-                # 连接单选按钮事件
-                radio_btn.toggled.connect(lambda checked, r=row: self.on_signal_radio_toggled(r, checked))
-                
-                # 填充信号数据
-                for col, key in enumerate(['name', 'pgn', 'source_address', 'start_bit', 
-                                           'length', 'factor', 'offset', 'unit'], start=1):
-                    value = str(signal.get(key, ''))
-                    item = QTableWidgetItem(value)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)  # 设置为只读
-                    self.signal_table.setItem(row, col, item)
+            # 连接单选按钮事件
+            radio_btn.toggled.connect(lambda checked, r=row: self.on_signal_radio_toggled(r, checked))
             
-            # 调整列宽
-            self.signal_table.resizeColumnsToContents()
-        except Exception as e:
-            print(f"load_signals 失败: {e}")
-            import traceback
-            traceback.print_exc()
+            # 填充信号数据
+            for col, key in enumerate(['name', 'pgn', 'source_address', 'start_bit', 
+                                       'length', 'factor', 'offset', 'unit'], start=1):
+                value = str(signal.get(key, ''))
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                self.signal_table.setItem(row, col, item)
+            
+            # 每100行输出一次进度
+            if (row + 1) % 100 == 0:
+                print(f"  已填充 {row + 1}/{len(signals)} 行")
+        
+        print(f"表格填充完成，共 {len(signals)} 行")
+        
+        # 调整列宽
+        self.signal_table.resizeColumnsToContents()
+        print("列宽调整完成")
     
     def update_config_table(self):
         """更新配置表格显示"""
@@ -206,7 +272,95 @@ class AdvancedSignalDialog(QDialog):
         self.config_table.resizeColumnsToContents()
     
     def get_all_signals(self):
-        """获取所有CAN信号 - 适配您的DBCManager结构"""
+        """获取所有CAN信号 - 简化可靠版本"""
+        print(f"\n=== get_all_signals() 开始 ===")
+        
+        signals = []
+        
+        if not self.dbc_manager:
+            print("错误: dbc_manager 为 None")
+            return signals
+        
+        # 方法1：尝试使用 get_all_messages()
+        if hasattr(self.dbc_manager, 'get_all_messages'):
+            try:
+                all_messages = self.dbc_manager.get_all_messages()
+                print(f"通过 get_all_messages() 获取到 {len(all_messages)} 个消息")
+                
+                for i, message in enumerate(all_messages):
+                    # 获取消息的基本信息
+                    message_name = getattr(message, 'name', f'MSG_{i}')
+                    message_id = getattr(message, 'can_id', getattr(message, 'id', 0))
+                    
+                    # 检查 signals 属性
+                    if hasattr(message, 'signals'):
+                        signal_list = message.signals
+                        if isinstance(signal_list, list):
+                            # 提取每个信号
+                            for signal in signal_list:
+                                signal_info = self._create_signal_info_simple(message, signal)
+                                if signal_info:
+                                    signals.append(signal_info)
+                        
+                        # 如果是整数，表示有信号但需要其他方式获取
+                        elif isinstance(signal_list, int) and signal_list > 0:
+                            print(f"消息 {message_name} 有 {signal_list} 个信号，但 signals 是整数")
+                            # 尝试 signal_dict
+                            if hasattr(message, 'signal_dict'):
+                                signal_dict = message.signal_dict
+                                if isinstance(signal_dict, dict):
+                                    for signal_name, signal in signal_dict.items():
+                                        signal_info = self._create_signal_info_simple(message, signal, signal_name)
+                                        if signal_info:
+                                            signals.append(signal_info)
+                
+                print(f"总共提取到 {len(signals)} 个信号")
+                return signals
+                
+            except Exception as e:
+                print(f"使用 get_all_messages() 失败: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 方法2：尝试直接访问 messages 字典
+        if hasattr(self.dbc_manager, 'messages'):
+            try:
+                messages_dict = self.dbc_manager.messages
+                print(f"通过 messages 字典获取到 {len(messages_dict)} 个消息")
+                
+                for msg_id, message in messages_dict.items():
+                    # 处理方式同上...
+                    pass
+                    
+            except Exception as e:
+                print(f"使用 messages 字典失败: {e}")
+        
+        print(f"最终返回 {len(signals)} 个信号")
+        return signals
+
+    def _create_signal_info_simple(self, message, signal, signal_name=''):
+        """创建信号信息 - 简化版"""
+        try:
+            if not signal_name and hasattr(signal, 'name'):
+                signal_name = signal.name
+            
+            # 获取消息ID（注意属性名可能是 can_id 或 id）
+            message_id = getattr(message, 'can_id', getattr(message, 'id', 0))
+            
+            return {
+                'name': signal_name,
+                'pgn': f"0x{message_id:X}",
+                'source_address': f"0x{(message_id >> 8) & 0xFF:X}" if message_id else '',
+                'start_bit': str(getattr(signal, 'start_bit', getattr(signal, 'start', ''))),
+                'length': str(getattr(signal, 'size', getattr(signal, 'length', ''))),
+                'factor': str(getattr(signal, 'factor', getattr(signal, 'scale', 1.0))),
+                'offset': str(getattr(signal, 'offset', 0.0)),
+                'unit': str(getattr(signal, 'unit', '')),
+            }
+        except Exception as e:
+            print(f"创建信号信息失败: {e}")
+            return None
+        """获取所有CAN信号 - 最终正确版本"""
         signals = []
         
         if not self.dbc_manager:
@@ -214,76 +368,82 @@ class AdvancedSignalDialog(QDialog):
             return signals
         
         print("=== 开始提取信号 ===")
-        signal_count = 0
         
-        # 方法1: 使用 get_all_messages() 获取消息列表
+        # 方法1：使用 get_all_messages() 方法
         if hasattr(self.dbc_manager, 'get_all_messages'):
             try:
                 all_messages = self.dbc_manager.get_all_messages()
                 print(f"通过 get_all_messages() 获取到 {len(all_messages)} 个消息")
                 
-                for message in all_messages:
-                    # 检查每个消息的信号
+                total_signals_extracted = 0
+                
+                for i, message in enumerate(all_messages):
+                    message_name = getattr(message, 'name', f'MSG_{i}')
+                    message_id = getattr(message, 'can_id', getattr(message, 'id', 0))
+                    
+                    # 关键：检查 signals 列表
                     if hasattr(message, 'signals'):
-                        # 直接访问信号列表
-                        for signal in message.signals:
-                            signal_info = self._extract_signal_info(message, signal)
-                            if signal_info:
-                                signals.append(signal_info)
-                                signal_count += 1
-                                
-                print(f"总共提取到 {signal_count} 个信号")
+                        signal_list = message.signals
+                        if isinstance(signal_list, list):
+                            # 调试：查看第一个消息的详细信息
+                            if i == 0:
+                                print(f"\n调试第一个消息 '{message_name}':")
+                                print(f"  can_id: 0x{message_id:X}")
+                                print(f"  signals 列表长度: {len(signal_list)}")
+                                if signal_list:
+                                    first_signal = signal_list[0]
+                                    print(f"  第一个信号对象类型: {type(first_signal)}")
+                                    print(f"  第一个信号属性: {[attr for attr in dir(first_signal) if not attr.startswith('_')][:10]}")
+                            
+                            # 提取这个消息的所有信号
+                            for signal in signal_list:
+                                signal_info = self._extract_signal_info(message, signal)
+                                if signal_info:
+                                    signals.append(signal_info)
+                                    total_signals_extracted += 1
+                                    
+                                    # 调试输出前几个信号
+                                    if total_signals_extracted <= 3:
+                                        print(f"  提取信号 #{total_signals_extracted}: {signal_info['name']}")
+                    
+                    # 备选：检查 signal_dict
+                    elif hasattr(message, 'signal_dict'):
+                        signal_dict = message.signal_dict
+                        if isinstance(signal_dict, dict):
+                            for signal_name, signal in signal_dict.items():
+                                signal_info = self._extract_signal_info(message, signal, signal_name)
+                                if signal_info:
+                                    signals.append(signal_info)
+                                    total_signals_extracted += 1
+                
+                print(f"\n总共提取到 {total_signals_extracted} 个信号")
                 return signals
                 
             except Exception as e:
-                print(f"调用 get_all_messages() 失败: {e}")
+                print(f"提取信号失败: {e}")
                 import traceback
                 traceback.print_exc()
         
-        # 方法2: 备用方案 - 直接访问 messages 字典
-        if hasattr(self.dbc_manager, 'messages'):
-            try:
-                messages_dict = self.dbc_manager.messages
-                print(f"直接访问 messages 字典，包含 {len(messages_dict)} 个消息")
-                
-                for msg_id, message in messages_dict.items():
-                    if hasattr(message, 'signals'):
-                        # 直接遍历信号列表
-                        for signal in message.signals:
-                            signal_info = self._extract_signal_info(message, signal)
-                            if signal_info:
-                                signals.append(signal_info)
-                                signal_count += 1
-                
-                print(f"总共提取到 {signal_count} 个信号")
-                return signals
-                
-            except Exception as e:
-                print(f"访问 messages 字典失败: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        print("警告: 无法从 dbc_manager 中提取消息数据")
         return signals
 
     def _extract_signal_info(self, message, signal, signal_name=''):
-        """从信号对象中提取信息 - 增强版"""
+        """从信号对象中提取信息 - 针对您的DBCSignal结构"""
         try:
             # 获取信号名称
             if not signal_name and hasattr(signal, 'name'):
                 signal_name = signal.name
             
-            # 调试信息
-            message_id = getattr(message, 'id', 0)
+            # 获取消息ID（注意：在DBCMessage中是 can_id，不是 id）
+            message_id = getattr(message, 'can_id', getattr(message, 'id', 0))
             message_name = getattr(message, 'name', f'MSG_{message_id:X}')
             
-            # 构建标准化的信号信息字典
+            # 构建信号信息字典 - 针对您的DBCSignal结构
             signal_info = {
                 'name': signal_name,
-                'pgn': f"0x{message_id:X}",  # 使用消息ID作为PGN
-                'source_address': f"0x{(message_id >> 8) & 0xFF:X}" if message_id else '',  # 从ID中提取SA
-                'start_bit': getattr(signal, 'start_bit', ''),
-                'length': getattr(signal, 'size', getattr(signal, 'length', '')),
+                'pgn': f"0x{message_id:X}",  # 使用can_id作为PGN
+                'source_address': f"0x{(message_id >> 8) & 0xFF:X}" if message_id else '',  # 从can_id中提取SA
+                'start_bit': getattr(signal, 'start_bit', getattr(signal, 'start', '')),
+                'length': getattr(signal, 'size', getattr(signal, 'length', getattr(signal, 'bit_length', ''))),
                 'factor': float(getattr(signal, 'factor', getattr(signal, 'scale', 1.0))),
                 'offset': float(getattr(signal, 'offset', 0.0)),
                 'unit': getattr(signal, 'unit', ''),
@@ -292,26 +452,60 @@ class AdvancedSignalDialog(QDialog):
                 'message_id': message_id,
                 'byte_order': getattr(signal, 'byte_order', 'little' if getattr(signal, 'is_little_endian', True) else 'big'),
                 'is_signed': bool(getattr(signal, 'is_signed', False)),
-                'min': getattr(signal, 'minimum', ''),
-                'max': getattr(signal, 'maximum', ''),
+                'min': getattr(signal, 'min', getattr(signal, 'minimum', '')),
+                'max': getattr(signal, 'max', getattr(signal, 'maximum', '')),
             }
-            
-            # 调试输出前几个信号
-            if len(signal_info['name']) > 0 and signal_count < 3:  # 只输出前3个信号
-                print(f"  提取信号: {signal_info['name']} (消息: {message_name})")
-                print(f"    起始位: {signal_info['start_bit']}, 长度: {signal_info['length']}")
-                print(f"    系数: {signal_info['factor']}, 偏移: {signal_info['offset']}")
             
             return signal_info
             
         except Exception as e:
             print(f"提取信号信息失败: {e}")
-            print(f"  消息对象: {message}")
-            print(f"  信号对象: {signal}")
+            print(f"  信号对象类型: {type(signal)}")
+            print(f"  信号对象属性: {[attr for attr in dir(signal) if not attr.startswith('_')]}")
+            return None
+    def test_signal_extraction(self):
+        """快速测试信号提取"""
+        if not self.dbc_manager or not hasattr(self.dbc_manager, 'get_all_messages'):
+            print("无法测试: dbc_manager 或 get_all_messages 不存在")
+            return
+        
+        try:
+            all_messages = self.dbc_manager.get_all_messages()
+            if not all_messages:
+                print("没有消息数据")
+                return
+            
+            # 测试第一个消息
+            first_message = all_messages[0]
+            print(f"\n=== 测试第一个消息 ===")
+            print(f"消息名称: {getattr(first_message, 'name', 'N/A')}")
+            print(f"消息ID(can_id): 0x{getattr(first_message, 'can_id', getattr(first_message, 'id', 0)):X}")
+            print(f"signals 类型: {type(getattr(first_message, 'signals', None))}")
+            
+            signal_list = getattr(first_message, 'signals', [])
+            print(f"signals 列表长度: {len(signal_list)}")
+            
+            if signal_list:
+                first_signal = signal_list[0]
+                print(f"\n第一个信号详情:")
+                print(f"  信号名称: {getattr(first_signal, 'name', 'N/A')}")
+                print(f"  起始位: {getattr(first_signal, 'start_bit', 'N/A')}")
+                print(f"  长度: {getattr(first_signal, 'size', getattr(first_signal, 'length', 'N/A'))}")
+                print(f"  系数: {getattr(first_signal, 'factor', getattr(first_signal, 'scale', 'N/A'))}")
+                print(f"  偏移: {getattr(first_signal, 'offset', 'N/A')}")
+                
+                # 测试提取
+                test_info = self._extract_signal_info(first_message, first_signal)
+                if test_info:
+                    print(f"\n提取的信号信息:")
+                    for key, value in test_info.items():
+                        if not key.startswith('_'):
+                            print(f"  {key}: {value}")
+        
+        except Exception as e:
+            print(f"测试失败: {e}")
             import traceback
             traceback.print_exc()
-            return None
-
     def get_signal_data_from_row(self, row):
         """从表格行获取信号数据 - 确保与表格列对应"""
         if row < 0 or row >= self.signal_table.rowCount():
