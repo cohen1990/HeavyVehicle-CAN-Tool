@@ -104,6 +104,9 @@ class MainWindow(QMainWindow):
         self.btn_import_dbc.setEnabled(False)
         data_row.addWidget(self.btn_import_dbc)
         
+        if hasattr(self, 'btn_signal_config'):
+            self.btn_signal_config.setEnabled(True)
+            print("[MainWindow] 信号配置按钮已启用")
         self.btn_signal_config = QPushButton("⚙️ 信号配置")
         self.btn_signal_config.setFixedWidth(100)
         self.btn_signal_config.setEnabled(False)
@@ -790,30 +793,25 @@ class MainWindow(QMainWindow):
 
     def on_signal_config_clicked(self):
         """信号配置按钮点击事件"""
-        print(f"\n=== on_signal_config_clicked() 开始 ===")
-        print(f"self.dbc_manager: {self.dbc_manager}")
+        print("\n" + "="*60)
+        print("[MainWindow] on_signal_config_clicked() 被调用!")
+        print(f"[MainWindow] self.dbc_manager: {self.dbc_manager}")
         
+        if not self.dbc_manager:
+            print("[MainWindow] 警告: dbc_manager 为 None!")
+            QMessageBox.warning(self, "提示", 
+                "请先导入DBC文件后再进行信号配置。")
+            return
+        
+        print(f"[MainWindow] dbc_manager类型: {type(self.dbc_manager)}")
+        if hasattr(self.dbc_manager, 'messages'):
+            print(f"[MainWindow] messages数量: {len(self.dbc_manager.messages)}")
+        
+        # 创建对话框
         try:
-            # 确保有dbc_manager
-            if not self.dbc_manager:
-                print("警告: MainWindow 的 dbc_manager 为 None")
-                # 显示提示但不阻止打开对话框
-                QMessageBox.warning(self, "提示", 
-                    "DBC管理器未初始化。可以打开配置对话框手动配置信号。")
-            print("\n" + "="*60)
-            print("[MainWindow] 即将打开信号配置对话框")
-            print(f"[MainWindow] self.dbc_manager 是否存在: {hasattr(self, 'dbc_manager')}")
-            if hasattr(self, 'dbc_manager'):
-                print(f"[MainWindow] self.dbc_manager 的值: {self.dbc_manager}")
-                if self.dbc_manager:
-                    print(f"[MainWindow] dbc_manager.messages 数量: {len(self.dbc_manager.messages)}")
-            else:
-                print("[MainWindow] 警告：self 没有 dbc_manager 属性！")            
-            
-            # 创建对话框
+            from src.ui.advanced_signal_dialog import AdvancedSignalDialog
             dialog = AdvancedSignalDialog(self, self.dbc_manager)
-            print("="*60 + "\n")
-            print(f"创建对话框，传入 dbc_manager: {self.dbc_manager}")
+            print("[MainWindow] AdvancedSignalDialog创建成功")
             
             # 设置对话框样式
             dialog.setStyleSheet("""
@@ -869,17 +867,31 @@ class MainWindow(QMainWindow):
                 }
             """)
             
+            print("[MainWindow] 即将显示对话框...")
+            
             # 显示对话框
             result = dialog.exec()
             
             if result == QDialog.Accepted:
-                print("信号配置已保存")
-
-            
+                print("[MainWindow] 信号配置已保存")
+                # 这里可以添加保存配置的逻辑
+                QMessageBox.information(self, "成功", "信号配置已保存")
+            else:
+                print("[MainWindow] 信号配置取消")
+                
+        except ImportError as e:
+            print(f"[MainWindow] 导入AdvancedSignalDialog失败: {e}")
+            QMessageBox.critical(self, "错误", 
+                f"无法加载信号配置模块:\n{str(e)}\n\n请确保advanced_signal_dialog.py文件存在。")
+                
         except Exception as e:
-            print(f"打开信号配置对话框时出错: {e}")
+            print(f"[MainWindow] 创建对话框失败: {e}")
             import traceback
             traceback.print_exc()
+            QMessageBox.critical(self, "错误", 
+                f"打开信号配置失败:\n{str(e)}")
+        
+        print("="*60 + "\n")
             
     def on_signals_updated():
         """信号更新完成后的处理"""
