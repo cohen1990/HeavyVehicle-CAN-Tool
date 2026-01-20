@@ -55,6 +55,13 @@ class MainWindow(QMainWindow):
         self.test_mode = None
         # 注册回调
         multi_can_manager.register_callback(self.handle_can_message)
+        # 测试按钮初始化
+        print(f"\n=== MainWindow初始化完成 ===")
+        print(f"信号配置按钮: {hasattr(self, 'btn_signal_config')}")
+        if hasattr(self, 'btn_signal_config'):
+            print(f"按钮是否启用: {self.btn_signal_config.isEnabled()}")
+            print(f"按钮文本: {self.btn_signal_config.text()}")
+        print(f"dbc_manager: {getattr(self, 'dbc_manager', '未定义')}")
         
     def init_ui(self):
         """初始化界面 - 多硬件版本"""
@@ -104,13 +111,31 @@ class MainWindow(QMainWindow):
         self.btn_import_dbc.setEnabled(False)
         data_row.addWidget(self.btn_import_dbc)
         
-        if hasattr(self, 'btn_signal_config'):
-            self.btn_signal_config.setEnabled(True)
-            print("[MainWindow] 信号配置按钮已启用")
+        # 在 init_ui 方法中，找到按钮定义，修改为：
+        print("[MainWindow] 初始化信号配置按钮...")
+
+        # 创建按钮
         self.btn_signal_config = QPushButton("⚙️ 信号配置")
         self.btn_signal_config.setFixedWidth(100)
-        self.btn_signal_config.setEnabled(False)
+        self.btn_signal_config.clicked.connect(self.on_signal_config_clicked)
+
+        # 初始状态
+        self.btn_signal_config.setEnabled(False)  # 初始禁用
+        self.btn_signal_config.setStyleSheet("""
+            QPushButton {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+
+        # 添加到布局
         data_row.addWidget(self.btn_signal_config)
+        print("[MainWindow] 信号配置按钮已创建（初始禁用）")
+
+        # 如果已经有DBC数据，立即启用
+        if hasattr(self, 'dbc_manager') and self.dbc_manager:
+            print("[MainWindow] 检测到已有dbc_manager，立即检查数据")
+            self.update_signal_config_button()
         
         self.btn_import_config = QPushButton("📥 导入配置")
         self.btn_import_config.setFixedWidth(100)
@@ -701,33 +726,203 @@ class MainWindow(QMainWindow):
     
     def on_import_dbc_clicked(self):
         """导入DBC按钮点击"""
+        from src.ui.import_dbc_dialog import ImportDBCDialog
         dialog = ImportDBCDialog(self)
         
         def on_dbc_imported():
             """DBC导入完成后的处理"""
-            messages = dbc_manager.get_all_messages()
-            signals = dbc_manager.get_all_signals()
+            print(f"\n{'='*60}")
+            print("[MainWindow] DBC导入完成回调")
             
-            # 更新状态栏
-            self.status_bar.showMessage(
-                f"DBC导入完成: {len(messages)} 个消息, {len(signals)} 个信号"
-            )
+            # 关键：使用 self.dbc_manager，不是 dbc_manager！
+            if not hasattr(self, 'dbc_manager') or self.dbc_manager is None:
+                print("[MainWindow] 错误: self.dbc_manager 不存在!")
+                self.status_bar.showMessage("DBC导入失败: 管理器未初始化")
+                return
             
-            # 更新按钮状态
-            if messages:
-                self.btn_signal_config.setEnabled(True)
+            print(f"[MainWindow] self.dbc_manager: {self.dbc_manager}")
+            
+            try:
+                # 获取消息
+                messages = []
+                if hasattr(self.dbc_manager, 'get_all_messages'):
+                    messages = self.dbc_manager.get_all_messages()
+                    print(f"[MainWindow] 获取到 {len(messages)} 个消息")
                 
-            # 显示提示
-            QMessageBox.information(
-                self, 
-                "导入完成", 
-                f"成功导入 {len(messages)} 个消息, {len(signals)} 个信号\n"
-                "现在可以配置要监控的信号了。"
-            )
+                # 统计信号
+                signals_count = 0
+                if messages:
+                    # 只统计前10个消息的信号，避免性能问题
+                    for msg in messages[:10]:
+                        if hasattr(msg, 'signals'):
+                            sigs = msg.signals
+                            if isinstance(sigs, list):
+                                signals_count += len(sigs)
+                            elif isinstance(sigs, dict):
+                                signals_count += len(sigs)
+                    
+                    # 估算总信号数
+                    if len(messages) > 10:
+                        signals_count = int(signals_count * (len(messages) / 10))
+                
+                # 更新状态栏
+                status_msg = f"DBC导入完成: {len(messages)} 个消息, {signals_count}+ 个信号"
+                self.status_bar.showMessage(status_msg)
+                print(f"[MainWindow] {status_msg}")
+                
+                # 更新按钮状态
+                self.update_signal_config_button()
+                
+            except Exception as e:
+                print(f"[MainWindow] 处理DBC导入时出错: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            print(f"{'='*60}\n")
         
-        dialog.dbc_imported.connect(on_dbc_imported)
-        dialog.exec_()
+        # 连接信号（假设ImportDBCDialog有dbc_imported信号）
+        if hasattr(dialog, 'dbc_imported'):
+            dialog.dbc_imported.connect(on_dbc_imported)
+            print("[MainWindow] 连接到dbc_imported信号")
+        else:
+            print("[MainWindow] ImportDBCDialog没有dbc_imported信号")
+            # 备用方案：对话框关闭后检查
+            def on_dialog_finished(result):
+                if result == QDialog.Accepted:
+                    print("[MainWindow] 对话框接受，手动触发导入处理")
+                    on_dbc_imported()
+            dialog.finished.connect(on_dialog_finished)
         
+        # 显示对话框
+        dialog.exec()
+        
+    def on_dbc_imported(self):
+        """DBC导入完成后的处理"""
+        print("\n" + "="*60)
+        print("[MainWindow] on_dbc_imported() 被调用")
+        
+        # 关键检查：确保有 dbc_manager
+        print(f"[MainWindow] 检查 self.dbc_manager: {self.dbc_manager}")
+        print(f"[MainWindow] hasattr(self, 'dbc_manager'): {hasattr(self, 'dbc_manager')}")
+        
+        if not hasattr(self, 'dbc_manager') or self.dbc_manager is None:
+            print("[MainWindow] 错误: self.dbc_manager 不存在或为 None!")
+            
+            # 尝试从对话框或全局获取
+            self.dbc_manager = getattr(self, '_temp_dbc_manager', None)
+            if self.dbc_manager:
+                print(f"[MainWindow] 从 _temp_dbc_manager 获取到 dbc_manager")
+            else:
+                print("[MainWindow] 无法获取 dbc_manager，按钮将保持禁用")
+                return
+        
+        # 详细检查 dbc_manager
+        print(f"[MainWindow] dbc_manager 类型: {type(self.dbc_manager)}")
+        print(f"[MainWindow] dbc_manager 属性: {[attr for attr in dir(self.dbc_manager) if not attr.startswith('_')][:10]}")
+        
+        # 测试获取消息
+        try:
+            if hasattr(self.dbc_manager, 'get_all_messages'):
+                messages = self.dbc_manager.get_all_messages()
+                print(f"[MainWindow] get_all_messages() 调用成功")
+                print(f"[MainWindow] messages 类型: {type(messages)}")
+                print(f"[MainWindow] messages 长度: {len(messages) if hasattr(messages, '__len__') else '无长度属性'}")
+                print(f"[MainWindow] messages 是否为真: {bool(messages)}")
+                
+                if messages:
+                    print(f"[MainWindow] ✓ messages 非空，包含 {len(messages)} 个消息")
+                    
+                    # 获取信号数量
+                    signals_count = 0
+                    for msg in messages[:3]:  # 只检查前3个
+                        if hasattr(msg, 'signals'):
+                            sigs = msg.signals
+                            if isinstance(sigs, list):
+                                signals_count += len(sigs)
+                            elif isinstance(sigs, dict):
+                                signals_count += len(sigs)
+                    
+                    # 更新状态栏
+                    status_msg = f"DBC导入完成: {len(messages)} 个消息, {signals_count}+ 个信号"
+                    self.status_bar.showMessage(status_msg)
+                    print(f"[MainWindow] {status_msg}")
+                    
+                    # 更新按钮状态
+                    self.update_signal_config_button()
+                else:
+                    print("[MainWindow] ✗ messages 是空列表!")
+                    self.status_bar.showMessage("DBC导入完成，但未找到消息")
+                    
+            else:
+                print("[MainWindow] dbc_manager 没有 get_all_messages 方法")
+                
+        except Exception as e:
+            print(f"[MainWindow] 获取消息失败: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        print("="*60 + "\n")
+    def update_signal_config_button(self):
+        """更新信号配置按钮状态"""
+        print(f"\n[MainWindow] 更新信号配置按钮状态...")
+        
+        # 确保按钮存在
+        if not hasattr(self, 'btn_signal_config'):
+            print("[MainWindow] 错误: btn_signal_config 按钮不存在")
+            return
+        
+        # 检查是否有可用的DBC数据
+        has_dbc_data = False
+        
+        if hasattr(self, 'dbc_manager') and self.dbc_manager:
+            print(f"[MainWindow] dbc_manager 存在: {self.dbc_manager}")
+            
+            # 检查是否有消息数据
+            try:
+                if hasattr(self.dbc_manager, 'get_all_messages'):
+                    messages = self.dbc_manager.get_all_messages()
+                    print(f"[MainWindow] 获取到消息: {len(messages) if messages else 0} 个")
+                    has_dbc_data = bool(messages and len(messages) > 0)
+                elif hasattr(self.dbc_manager, 'messages'):
+                    messages_dict = self.dbc_manager.messages
+                    print(f"[MainWindow] messages字典长度: {len(messages_dict)}")
+                    has_dbc_data = len(messages_dict) > 0
+            except Exception as e:
+                print(f"[MainWindow] 检查DBC数据时出错: {e}")
+                has_dbc_data = False
+        else:
+            print("[MainWindow] dbc_manager 不存在或为 None")
+            has_dbc_data = False
+        
+        # 更新按钮状态
+        print(f"[MainWindow] DBC数据状态: {'可用' if has_dbc_data else '不可用'}")
+        print(f"[MainWindow] 按钮状态设置为: {'启用' if has_dbc_data else '禁用'}")
+        
+        self.btn_signal_config.setEnabled(has_dbc_data)
+        
+        # 可选：视觉反馈
+        if has_dbc_data:
+            self.btn_signal_config.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+        else:
+            self.btn_signal_config.setStyleSheet("""
+                QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                }
+                QPushButton:hover {
+                    background-color: #da190b;
+                }
+            """)    
+    
     def on_import_config_clicked(self):
         """导入配置按钮点击"""
         try:
